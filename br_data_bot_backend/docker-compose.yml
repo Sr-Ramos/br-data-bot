@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: br_data_bot_postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-br_data_bot}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secure_password}
+      POSTGRES_DB: ${DB_NAME:-br_data_bot}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-br_data_bot}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: br_data_bot_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Backend
+  backend:
+    build: .
+    container_name: br_data_bot_backend
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-br_data_bot}:${DB_PASSWORD:-secure_password}@postgres:5432/${DB_NAME:-br_data_bot}
+      REDIS_URL: redis://redis:6379/0
+      DEBUG: ${DEBUG:-False}
+      HOST: 0.0.0.0
+      PORT: 8000
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_WEBHOOK_URL: ${TELEGRAM_WEBHOOK_URL}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID}
+      WHATSAPP_BUSINESS_ACCOUNT_ID: ${WHATSAPP_BUSINESS_ACCOUNT_ID}
+      WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN}
+      WHATSAPP_WEBHOOK_URL: ${WHATSAPP_WEBHOOK_URL}
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN: ${WHATSAPP_WEBHOOK_VERIFY_TOKEN}
+      PORTAL_TRANSPARENCIA_TOKEN: ${PORTAL_TRANSPARENCIA_TOKEN}
+      HAVE_I_BEEN_PWNED_API_KEY: ${HAVE_I_BEEN_PWNED_API_KEY}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      ADMIN_SECRET_KEY: ${ADMIN_SECRET_KEY:-your-secret-key}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  default:
+    name: br_data_bot_network
